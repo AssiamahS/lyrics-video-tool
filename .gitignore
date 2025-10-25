@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Output files
+output/*.mp3
+output/*.mp4
+output/*.lrc
+
+# Keep output directory structure
+!output/.gitkeep
+
+# OS
+.DS_Store
+*.swp
+
+# IDEs
+.vscode/
+.idea/
