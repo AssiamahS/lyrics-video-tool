@@ -53,6 +53,17 @@ struct ContentView: View {
                         }
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                Button { AddSongs.present(engine) } label: {
+                    Label("Add Songs…", systemImage: "plus.circle.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .padding(12)
+            }
             .navigationSplitViewColumnWidth(min: 280, ideal: 320)
             .overlay {
                 if engine.jobs.isEmpty {
@@ -137,6 +148,7 @@ struct JobRow: View {
 }
 
 struct Detail: View {
+    @Environment(Engine.self) private var engine
     let job: Job?
     @State private var player = AVPlayer()
 
@@ -146,7 +158,7 @@ struct Detail: View {
                 switch job.status {
                 case .done:
                     VStack(spacing: 12) {
-                        VideoPlayer(player: player)
+                        PlayerView(player: player)
                             .aspectRatio(job.vertical ? 9.0 / 16.0 : 16.0 / 9.0, contentMode: .fit)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .shadow(radius: 20)
@@ -175,8 +187,14 @@ struct Detail: View {
                     .padding(24)
                 }
             } else {
-                ContentUnavailableView("Pick a video", systemImage: "play.rectangle",
-                                       description: Text("Finished renders play here"))
+                ContentUnavailableView {
+                    Label("Pick a video", systemImage: "play.rectangle")
+                } description: {
+                    Text("Finished renders play here. Add songs to make new ones.")
+                } actions: {
+                    Button("Add Songs…") { AddSongs.present(engine) }
+                        .buttonStyle(.borderedProminent)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -189,5 +207,25 @@ struct Detail: View {
         guard let job, job.status == .done else { player.pause(); return }
         player.replaceCurrentItem(with: AVPlayerItem(url: job.output))
         player.play()
+    }
+}
+
+
+/// AppKit player instead of SwiftUI's VideoPlayer: the _AVKit_SwiftUI overlay aborts
+/// at launch when the app is built with the Command Line Tools SDK (no Xcode).
+struct PlayerView: NSViewRepresentable {
+    let player: AVPlayer
+
+    func makeNSView(context: Context) -> AVPlayerView {
+        let view = AVPlayerView()
+        view.player = player
+        view.controlsStyle = .floating
+        view.showsFullScreenToggleButton = true
+        view.videoGravity = .resizeAspect
+        return view
+    }
+
+    func updateNSView(_ view: AVPlayerView, context: Context) {
+        if view.player !== player { view.player = player }
     }
 }
