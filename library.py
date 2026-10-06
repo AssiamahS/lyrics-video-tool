@@ -63,8 +63,15 @@ def split_artist_title(path: Path) -> Tuple[str, str]:
     for sep in (" - ", " – ", " — ", "-"):
         if sep in stem:
             artist, title = stem.split(sep, 1)
-            return artist.strip(), re.sub(r"\s*(ft|feat)\.?\s.*$", "", title, flags=re.I).strip()
+            return _strip_feat(artist), _strip_feat(title)
     return "", stem
+
+
+def _strip_feat(s: str) -> str:
+    """'A Boogie Wit Da Hoodie ft. Cash Cobain' -> 'A Boogie Wit Da Hoodie' (also feat./featuring/with/x/&/,)."""
+    s = re.sub(r"\s*[\(\[]?\s*(ft|feat|featuring|with)\.?\s.*$", "", s, flags=re.I)
+    s = re.split(r"\s+(?:x|&)\s+|,\s*", s, maxsplit=1)[0]
+    return s.strip(" -")
 
 
 def duration_of(path: Path) -> int:
@@ -89,8 +96,26 @@ def lrc_for(path: Path, artist: str = "", title: str = "", cache_dir: str = str(
     if lrc_path.exists():
         return str(lrc_path)
     from auto_lyrics_fetcher import AutoLyricsFetcher
-    content = AutoLyricsFetcher().auto_fetch(artist, title, duration_of(path) or None)
+    fetcher = AutoLyricsFetcher()
+    length = duration_of(path) or None
+    content = fetcher.auto_fetch(artist, title, length)
     if not content:
-        return None
+        # not in any lyrics database: transcribe this exact file so the timing is exact too
+        print("MODE transcribed", flush=True)
+        print("PROGRESS 0.00 transcribing vocals", flush=True)
+        from align import transcribe
+        content = transcribe(str(path))
+        if not content:
+            return None
+        lrc_path.write_text(content, encoding="utf-8")
+        return str(lrc_path)
+    # a different cut of the song (radio/DJ edit, YouTube rip) needs the lines re-timed
+    if length and fetcher.last_duration and abs(fetcher.last_duration - length) > 2:
+        print(f"PROGRESS 0.00 aligning ({fetcher.last_duration:.0f}s lyrics vs {length}s audio)", flush=True)
+        from align import align
+        content = align(content, str(path))
+        if not content:
+            print("❌ Lyrics found, but couldn't line them up with this edit of the song")
+            return None
     lrc_path.write_text(content, encoding="utf-8")
     return str(lrc_path)

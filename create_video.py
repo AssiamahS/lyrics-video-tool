@@ -5,6 +5,7 @@ Create professional lyrics videos with perfect timing
 """
 
 import argparse
+import sys
 import os
 from lyrics_fetcher import LyricsFetcher
 from video_renderer import LyricsVideoRenderer
@@ -82,9 +83,13 @@ def main():
         args.title = args.title or title
         args.lrc = library.lrc_for(Path(args.audio), args.artist, args.title)
         if not args.lrc:
-            print("ℹ️  No synced lyrics found, rendering visualizer instead", flush=True)
-            print("MODE visualizer", flush=True)
-            args.visualizer = True
+            # never swap in the visualizer silently: you asked for lyrics
+            print(f"NOLYRICS {args.artist} - {args.title}", flush=True)
+            print(f"❌ No synced lyrics found for: {args.artist} - {args.title}")
+            print("   Rename the file to 'Artist - Title', pass --lrc, or pick Visualizer.")
+            sys.exit(3)
+        elif not open(args.lrc, encoding="utf-8").read().strip():
+            sys.exit(3)
         else:
             print("MODE lyrics", flush=True)
 

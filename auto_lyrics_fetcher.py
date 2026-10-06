@@ -4,6 +4,7 @@ Automated Lyrics Fetcher - Production System
 Fetches synced lyrics from multiple sources automatically
 """
 
+import re
 import requests
 import json
 import os
@@ -11,6 +12,8 @@ from typing import Optional, List, Dict
 
 class AutoLyricsFetcher:
     """Automatically fetch synced lyrics from multiple APIs"""
+
+    last_duration = None
 
     def __init__(self, config_file='config.json'):
         """Load API keys from config"""
@@ -25,38 +28,58 @@ class AutoLyricsFetcher:
 
     def fetch_from_lrclib(self, artist: str, title: str, duration: int = None) -> Optional[str]:
         """
-        Fetch from LRCLIB (free, no API key needed!)
-        https://lrclib.net/api
+        Fetch synced lyrics from LRCLIB (free, no API key).
+        Tries several queries, since filenames rarely match the catalog exactly:
+          1. artist + title   2. free-text "artist title"   3. title only
+        and keeps the synced result whose length is closest to the audio file.
         """
-        try:
-            url = "https://lrclib.net/api/search"
-            params = {
-                'artist_name': artist,
-                'track_name': title
-            }
-            if duration:
-                params['duration'] = duration
+        url = "https://lrclib.net/api/search"
+        queries = [{'artist_name': artist, 'track_name': title},
+                   {'q': f"{artist} {title}".strip()},
+                   {'track_name': title}]
+        seen, candidates = set(), []
+        for params in queries:
+            if not any(v for v in params.values()):
+                continue
+            try:
+                response = requests.get(url, params=params, timeout=10)
+                results = response.json() if response.status_code == 200 else []
+            except Exception as e:
+                print(f"❌ LRCLIB error: {e}")
+                continue
+            for r in results:
+                if r.get('id') in seen or not r.get('syncedLyrics'):
+                    continue
+                seen.add(r.get('id'))
+                candidates.append(r)
+            if candidates and params is queries[0]:
+                break  # exact artist+title hit, no need to widen the search
 
-            response = requests.get(url, params=params, timeout=10)
-
-            if response.status_code == 200:
-                results = response.json()
-                if results and len(results) > 0:
-                    # Get the best match
-                    best = results[0]
-                    if 'syncedLyrics' in best and best['syncedLyrics']:
-                        print(f"✅ Found synced lyrics from LRCLIB")
-                        return best['syncedLyrics']
-                    elif 'plainLyrics' in best:
-                        print(f"⚠️ Found plain lyrics (no timing) from LRCLIB")
-                        return None
-
-            print(f"❌ No results from LRCLIB")
+        if not candidates:
+            print("❌ No synced lyrics on LRCLIB")
             return None
 
-        except Exception as e:
-            print(f"❌ LRCLIB error: {e}")
+        stop = {"a", "the", "da", "de", "and", "x", "dj", "mc", "lil", "big", "wit", "with", "of"}
+        want = {w for w in re.findall(r"[a-z0-9]+", artist.lower()) if w not in stop} if artist else set()
+
+        def artist_ok(r):
+            have = set(re.findall(r"[a-z0-9]+", (r.get('artistName') or '').lower()))
+            return not want or bool(want & have)
+
+        # a title-only hit by somebody else ("Body Dirty" -> an R. Kelly song) is a different song
+        candidates = [r for r in candidates if artist_ok(r)]
+        if not candidates:
+            print("❌ No synced lyrics on LRCLIB for this artist")
             return None
+
+        def score(r):
+            off = abs((r.get('duration') or 0) - duration) if duration else 0
+            return (off > 4, off)
+
+        best = min(candidates, key=score)
+        self.last_duration = best.get('duration')
+        print(f"✅ Synced lyrics: {best.get('artistName')} - {best.get('trackName')} ({best.get('duration')}s)")
+        return best['syncedLyrics']
 
     def fetch_from_musixmatch(self, artist: str, title: str) -> Optional[str]:
         """
