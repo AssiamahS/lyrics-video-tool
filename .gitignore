@@ -23,3 +23,7 @@ output/*.lrc
 # IDEs
 .vscode/
 .idea/
+output/lrc/
+songs/
+app/.build/
+app/dist/

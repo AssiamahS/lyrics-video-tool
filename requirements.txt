@@ -2,3 +2,4 @@ moviepy>=1.0.3
 pillow>=9.0.0
 spotipy>=2.23.0
 requests>=2.31.0
+numpy>=1.26

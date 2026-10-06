@@ -55,9 +55,26 @@ python create_video.py \
   --style bottom
 ```
 
+## The `look` style (default)
+
+Scrolling lyric sheet: blurred drifting background (your cover art or a gradient), the active line fills word by word with an audio-reactive glow, past lines stay lit, upcoming lines sit dim. Rendered with Pillow + ffmpeg, so there's no moviepy/ImageMagick needed (only `numpy`, `pillow`, `ffmpeg`).
+
+```bash
+# landscape 1920x1080 with cover art + intro card
+python create_video.py --audio song.mp3 --lrc song.lrc --output out.mp4 \
+  --cover cover.jpg --title "Song" --artist "Artist"
+
+# vertical 1080x1920 for reels/shorts, centered text, gradient background
+python create_video.py --audio song.mp3 --lrc song.lrc --output reel.mp4 \
+  --vertical --align center --palette ocean
+```
+
+Options: `--palette dusk|ocean|ember|mono`, `--align left|center`, `--font path.ttf`, `--font-size N`, `--fps N`.
+
 ## Styles
 
-- `center` - Centered text (default)
+- `look` - Scrolling word-fill lyric sheet (default)
+- `center` - Centered text
 - `bottom` - Subtitle style at bottom
 - `karaoke` - Word-by-word highlighting
 - `slide` - Sliding text animation
