@@ -73,6 +73,21 @@ def main():
             args.output = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'output',
                                        f"{safe or 'song'}{'_reel' if args.vertical else ''}.mp4")
 
+    # any audio file (e.g. dropped into the app): fetch lyrics, else fall back to the visualizer
+    if args.audio and not args.song and not args.lrc and not args.visualizer:
+        import library
+        from pathlib import Path
+        artist, title = library.split_artist_title(Path(args.audio))
+        args.artist = args.artist or artist
+        args.title = args.title or title
+        args.lrc = library.lrc_for(Path(args.audio), args.artist, args.title)
+        if not args.lrc:
+            print("ℹ️  No synced lyrics found, rendering visualizer instead", flush=True)
+            print("MODE visualizer", flush=True)
+            args.visualizer = True
+        else:
+            print("MODE lyrics", flush=True)
+
     if args.visualizer:
         if not args.audio:
             print("❌ Error: --visualizer needs --audio or --song")
